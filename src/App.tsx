@@ -13,6 +13,7 @@ import { HUD, ALGORITHMS_INFO } from './components/HUD';
 import { Controls } from './components/Controls';
 import { MapNavigationControls } from './components/MapNavigationControls';
 import { AlgorithmInfoModal } from './components/AlgorithmInfoModal';
+import { CitySelectorModal } from './components/CitySelectorModal';
 import { CanvasVideoRecorder } from './utils/recorder';
 
 type DragTarget = 'start' | 'dest' | 'map' | null;
@@ -54,8 +55,9 @@ export const App: React.FC = () => {
   const [settledCount, setSettledCount] = useState<number>(0);
   const [pathLengthMeters, setPathLengthMeters] = useState<number>(0);
 
-  // Modal & Recording
+  // Modals & Recording
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
+  const [isCitySelectorOpen, setIsCitySelectorOpen] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isAutoShowcase, setIsAutoShowcase] = useState<boolean>(false);
 
@@ -79,6 +81,59 @@ export const App: React.FC = () => {
   const currentCursorRef = useRef<number>(0);
   const animFrameIdRef = useRef<number | null>(null);
 
+  // Helper: Setup new graph data & adjacency list
+  const setupGraphData = useCallback((data: CityGraph) => {
+    setGraphData(data);
+
+    // Build adjacency list
+    const adj: AdjacencyEdge[][] = Array.from({ length: data.nodes.length }, () => []);
+    for (const edge of data.edges) {
+      adj[edge.source].push({
+        edgeId: edge.id,
+        target: edge.target,
+        weight: edge.weight,
+      });
+    }
+    adjacencyRef.current = adj;
+
+    // Pick start & destination nodes
+    let bestStart = 0;
+    let bestDest = 0;
+    let minX = Infinity;
+    let maxX = -Infinity;
+
+    data.nodes.forEach((n) => {
+      if (n.x < minX && n.y > 0.3 && n.y < 0.7) {
+        minX = n.x;
+        bestStart = n.id;
+      }
+      if (n.x > maxX && n.y > 0.3 && n.y < 0.7) {
+        maxX = n.x;
+        bestDest = n.id;
+      }
+    });
+
+    if (bestStart === bestDest && data.nodes.length > 1) {
+      bestStart = 0;
+      bestDest = Math.floor(data.nodes.length / 2);
+    }
+
+    setStartNodeId(bestStart);
+    setDestNodeId(bestDest);
+
+    // Reset camera transform
+    setZoom(1.0);
+    setPanX(0);
+    setPanY(0);
+
+    if (rendererRef.current) {
+      rendererRef.current.setWorldBounds(data.bounds);
+      rendererRef.current.resetTransform();
+      rendererRef.current.drawBaseNetwork(data.edges);
+      rendererRef.current.clearExploration();
+    }
+  }, []);
+
   // Load Graph Data
   useEffect(() => {
     fetch('./data/berlin.json')
@@ -87,38 +142,7 @@ export const App: React.FC = () => {
         return res.json();
       })
       .then((data: CityGraph) => {
-        setGraphData(data);
-
-        // Build adjacency list
-        const adj: AdjacencyEdge[][] = Array.from({ length: data.nodes.length }, () => []);
-        for (const edge of data.edges) {
-          adj[edge.source].push({
-            edgeId: edge.id,
-            target: edge.target,
-            weight: edge.weight,
-          });
-        }
-        adjacencyRef.current = adj;
-
-        // Pick initial start (west Berlin) and destination (east Berlin)
-        let bestStart = 0;
-        let bestDest = 0;
-        let minX = Infinity;
-        let maxX = -Infinity;
-
-        data.nodes.forEach((n) => {
-          if (n.x < minX && n.y > 0.3 && n.y < 0.7) {
-            minX = n.x;
-            bestStart = n.id;
-          }
-          if (n.x > maxX && n.y > 0.3 && n.y < 0.7) {
-            maxX = n.x;
-            bestDest = n.id;
-          }
-        });
-
-        setStartNodeId(bestStart);
-        setDestNodeId(bestDest);
+        setupGraphData(data);
         setLoading(false);
       })
       .catch((err) => {
@@ -126,7 +150,22 @@ export const App: React.FC = () => {
         setError('Failed to load Berlin graph data.');
         setLoading(false);
       });
-  }, []);
+  }, [setupGraphData]);
+
+  // Load custom city graph from UI modal
+  const handleSelectCityGraph = (newGraph: CityGraph) => {
+    if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
+    setIsPlaying(false);
+    setIsExploring(false);
+    setIsComplete(false);
+    setSettledCount(0);
+    setComputeTimeMs(0);
+    currentResultRef.current = null;
+    currentEventArrayRef.current = null;
+    currentCursorRef.current = 0;
+
+    setupGraphData(newGraph);
+  };
 
   // Update canvas renderer camera transform on pan/zoom changes
   const updateCameraTransform = useCallback((newZoom: number, newPanX: number, newPanY: number) => {
@@ -399,7 +438,7 @@ export const App: React.FC = () => {
     const distToStart = Math.hypot(mouseX - sx, mouseY - sy);
     const distToDest = Math.hypot(mouseX - dx, mouseY - dy);
 
-    const HIT_RADIUS = 28; // 28px hit radius for start/dest node circles
+    const HIT_RADIUS = 28;
 
     if (distToStart < HIT_RADIUS && distToStart <= distToDest) {
       setDragTarget('start');
@@ -424,7 +463,6 @@ export const App: React.FC = () => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Check hover proximity to endpoints when not dragging
     if (!isDragging) {
       const startNode = graphData.nodes[startNodeId];
       const destNode = graphData.nodes[destNodeId];
@@ -438,12 +476,10 @@ export const App: React.FC = () => {
       return;
     }
 
-    // Dragging logic
     if (dragTarget === 'start') {
       const nearestId = findNearestNode(mouseX, mouseY);
       if (nearestId !== null && nearestId !== startNodeId && nearestId !== destNodeId) {
         setStartNodeId(nearestId);
-        // Clear previous exploration line when moving endpoints
         currentEventArrayRef.current = null;
         currentCursorRef.current = 0;
         rendererRef.current?.clearExploration();
@@ -469,14 +505,13 @@ export const App: React.FC = () => {
 
   const handleMouseUp = () => {
     if (dragTarget === 'start' || dragTarget === 'dest') {
-      // Re-run pathfinding instantly from newly placed start/destination points!
       runAlgorithm(selectedAlg);
     }
     setIsDragging(false);
     setDragTarget(null);
   };
 
-  // Touch Handlers for Mobile / Tablet Pinch-to-Zoom, Pan & Endpoint Drag
+  // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!wrapperRef.current || !rendererRef.current || !graphData || startNodeId === null || destNodeId === null)
       return;
@@ -678,8 +713,8 @@ export const App: React.FC = () => {
     return (
       <div className="app-container">
         <div className="hud-overlay" style={{ textAlign: 'center' }}>
-          <h2 style={{ color: '#71b6ff' }}>Loading Berlin Road Network...</h2>
-          <p style={{ color: '#a0a5ac', marginTop: '10px' }}>Preprocessing 22,386 nodes and 57,023 edges</p>
+          <h2 style={{ color: '#71b6ff' }}>Loading City Road Network...</h2>
+          <p style={{ color: '#a0a5ac', marginTop: '10px' }}>Preprocessing graph geometry</p>
         </div>
       </div>
     );
@@ -763,12 +798,20 @@ export const App: React.FC = () => {
         durationMs={durationMs}
         onChangeDuration={setDurationMs}
         onOpenInfo={() => setIsInfoOpen(true)}
+        onOpenCitySelector={() => setIsCitySelectorOpen(true)}
         isMobileFrame={isMobileFrame}
         onToggleMobileFrame={() => setIsMobileFrame((prev) => !prev)}
       />
 
-      {/* Educational Modal */}
+      {/* Educational Info Modal */}
       <AlgorithmInfoModal isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
+
+      {/* Custom City Selector Modal */}
+      <CitySelectorModal
+        isOpen={isCitySelectorOpen}
+        onClose={() => setIsCitySelectorOpen(false)}
+        onSelectCityGraph={handleSelectCityGraph}
+      />
     </div>
   );
 };

@@ -13,6 +13,7 @@ import {
   Maximize2,
   ChevronDown,
   ChevronUp,
+  Globe,
 } from 'lucide-react';
 
 interface ControlsProps {
@@ -29,6 +30,7 @@ interface ControlsProps {
   durationMs: number;
   onChangeDuration: (dur: number) => void;
   onOpenInfo: () => void;
+  onOpenCitySelector: () => void;
   isMobileFrame: boolean;
   onToggleMobileFrame: () => void;
 }
@@ -47,6 +49,7 @@ export const Controls: React.FC<ControlsProps> = ({
   durationMs,
   onChangeDuration,
   onOpenInfo,
+  onOpenCitySelector,
   isMobileFrame,
   onToggleMobileFrame,
 }) => {
@@ -134,6 +137,15 @@ export const Controls: React.FC<ControlsProps> = ({
           >
             <Shuffle size={16} />
             <span>Randomize</span>
+          </button>
+
+          <button
+            className="action-btn showcase-btn"
+            onClick={onOpenCitySelector}
+            title="Load Custom City Map (e.g. Lahore, Tokyo, London, Paris)"
+          >
+            <Globe size={16} />
+            <span>Change City</span>
           </button>
         </div>
 
