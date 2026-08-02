@@ -34,6 +34,24 @@ You will see a link like `http://localhost:3000` printed on the screen. **Click 
 
 ---
 
+## 🌐 Deploy to GitHub Pages (`github.io`)
+
+This project is configured for automated deployment to GitHub Pages via **GitHub Actions** and the `gh-pages` package.
+
+### Option A: Automatic Deployment (Recommended)
+1. Push your repository to GitHub (`git push origin main`).
+2. On GitHub, navigate to **Settings > Pages**.
+3. Under **Build and deployment > Source**, select **GitHub Actions**.
+4. Every push to `main` will automatically build and publish your site to `https://<your-username>.github.io/<repository-name>/`.
+
+### Option B: Manual Command Line Deployment
+Run:
+```bash
+npm run deploy
+```
+
+---
+
 ## 🎮 How to Use the Interface
 
 | Button / Control | What it does |
@@ -45,6 +63,7 @@ You will see a link like `http://localhost:3000` printed on the screen. **Click 
 | **📹 Record Video** | Records the canvas directly into a **30-second WebM video file** saved straight to your Downloads folder! |
 | **Anim Duration Slider** | Speeds up or slows down the animation (from 1 second to 10 seconds). |
 | **❓ Info Icon** | Opens an educational guide explaining the time complexity and math behind each algorithm. |
+| **Zoom & Pan Controls** | Use mouse wheel or `+`/`-` buttons to zoom up to 2500%. Click and drag to pan across Berlin. |
 
 ---
 
@@ -74,7 +93,7 @@ If you wish to re-download or extract fresh map data using OpenStreetMap:
 
 - **Frontend Core**: React 18 + TypeScript + Vite
 - **Rendering Layer**: 3 Stacked HTML5 Canvases
-  1. *Base Canvas*: Dark road network (`rgba(39, 55, 88, 0.58)`), rendered once.
+  1. *Base Canvas*: Dark road network (`rgba(27, 41, 66, 0.55)`), rendered once.
   2. *Exploration Canvas*: Cyan glowing algorithm expansion paths (`rgba(27, 207, 255, 0.92)`).
   3. *Overlay Canvas*: Animated glowing start & destination points and final path lighting.
 - **Worker & Algorithms**: Off-main-thread Web Worker using a custom **Binary MinHeap** and zero-copy `Uint32Array` event buffer transfers.

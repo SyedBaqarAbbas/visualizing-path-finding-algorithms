@@ -77,7 +77,7 @@ export const App: React.FC = () => {
 
   // Load Graph Data
   useEffect(() => {
-    fetch('/data/berlin.json')
+    fetch('./data/berlin.json')
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
