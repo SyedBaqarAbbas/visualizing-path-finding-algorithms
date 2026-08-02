@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlgorithmType, AlgorithmInfo } from '../types/graph';
 import { ALGORITHMS_INFO } from './HUD';
-import { Play, Pause, RotateCcw, Shuffle, Video, Film, HelpCircle } from 'lucide-react';
+import { Play, Pause, RotateCcw, Shuffle, Video, Film, HelpCircle, Smartphone, Maximize2 } from 'lucide-react';
 
 interface ControlsProps {
   selectedAlgorithm: AlgorithmType;
@@ -17,6 +17,8 @@ interface ControlsProps {
   durationMs: number;
   onChangeDuration: (dur: number) => void;
   onOpenInfo: () => void;
+  isMobileFrame: boolean;
+  onToggleMobileFrame: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -33,6 +35,8 @@ export const Controls: React.FC<ControlsProps> = ({
   durationMs,
   onChangeDuration,
   onOpenInfo,
+  isMobileFrame,
+  onToggleMobileFrame,
 }) => {
   const algorithmsList: AlgorithmInfo[] = Object.values(ALGORITHMS_INFO);
 
@@ -104,7 +108,7 @@ export const Controls: React.FC<ControlsProps> = ({
 
         <div className="tool-group settings-actions">
           <div className="duration-slider-container">
-            <label>Anim Duration:</label>
+            <label>Speed:</label>
             <input
               type="range"
               min={1000}
@@ -115,6 +119,14 @@ export const Controls: React.FC<ControlsProps> = ({
             />
             <span className="duration-val">{(durationMs / 1000).toFixed(1)}s</span>
           </div>
+
+          <button
+            className="icon-btn"
+            onClick={onToggleMobileFrame}
+            title={isMobileFrame ? 'Switch to Fullscreen Canvas' : 'Switch to 9:16 Mobile Frame'}
+          >
+            {isMobileFrame ? <Maximize2 size={18} /> : <Smartphone size={18} />}
+          </button>
 
           <button className="icon-btn" onClick={onOpenInfo} title="Algorithm Details & Info">
             <HelpCircle size={18} />

@@ -18,6 +18,9 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Layout mode: default to Fullscreen desktop view (false = full bleed desktop)
+  const [isMobileFrame, setIsMobileFrame] = useState<boolean>(false);
+
   // Selected Nodes
   const [startNodeId, setStartNodeId] = useState<number | null>(null);
   const [destNodeId, setDestNodeId] = useState<number | null>(null);
@@ -135,7 +138,7 @@ export const App: React.FC = () => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [graphData, startNodeId, destNodeId]);
+  }, [graphData, startNodeId, destNodeId, isMobileFrame]);
 
   // Initialize Web Worker
   useEffect(() => {
@@ -306,7 +309,7 @@ export const App: React.FC = () => {
     setIsAutoShowcase(true);
     const algSequence: AlgorithmType[] = ['dijkstra', 'astar', 'bidirectional', 'bfs', 'greedy', 'dfs'];
     
-    // Set 4.5s per algorithm sequence
+    // Set 4.0s per algorithm sequence
     setDurationMs(4000);
 
     for (let i = 0; i < algSequence.length; i++) {
@@ -331,7 +334,6 @@ export const App: React.FC = () => {
       const ok = recorderRef.current.startRecording(compositeCanvasRef.current, 60);
       if (ok) {
         setIsRecording(true);
-        // Automatically start showcase when recording begins!
         handleStartAutoShowcase();
       }
     }
@@ -357,8 +359,8 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="app-container">
-      {/* Phone frame Canvas Visualizer Container */}
+    <div className={`app-container ${isMobileFrame ? 'mobile-frame-mode' : ''}`}>
+      {/* Canvas Visualizer Container (Full screen on desktop by default) */}
       <div className="visualizer-wrapper" ref={wrapperRef}>
         {/* Layer 1: Base road network */}
         <canvas ref={baseCanvasRef} />
@@ -400,6 +402,8 @@ export const App: React.FC = () => {
         durationMs={durationMs}
         onChangeDuration={setDurationMs}
         onOpenInfo={() => setIsInfoOpen(true)}
+        isMobileFrame={isMobileFrame}
+        onToggleMobileFrame={() => setIsMobileFrame((prev) => !prev)}
       />
 
       {/* Educational Modal */}
