@@ -563,6 +563,55 @@ html, body {
   box-shadow: 0 0 12px rgba(41, 199, 255, 0.4);
 }
 
+.btn-beta-tag {
+  font-size: 8px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  background: rgba(255, 159, 67, 0.25);
+  color: var(--color-bfs);
+  border: 1px solid rgba(255, 159, 67, 0.5);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.btn-tooltip-wrapper::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(10, 16, 26, 0.95);
+  backdrop-filter: blur(12px);
+  color: var(--text-important);
+  border: 1px solid rgba(255, 159, 67, 0.4);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
+  z-index: 50;
+}
+
+.btn-tooltip-wrapper:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
 .record-btn {
   background: rgba(255, 83, 73, 0.15);
   color: var(--start-red);

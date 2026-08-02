@@ -139,14 +139,17 @@ export const Controls: React.FC<ControlsProps> = ({
             <span>Randomize</span>
           </button>
 
-          <button
-            className="action-btn showcase-btn"
-            onClick={onOpenCitySelector}
-            title="Load Custom City Map (e.g. Lahore, Tokyo, London, Paris)"
-          >
-            <Globe size={16} />
-            <span>Change City</span>
-          </button>
+          <div className="btn-tooltip-wrapper" data-tooltip="⚡ Beta Feature: Fetch live OpenStreetMap data for any city">
+            <button
+              className="action-btn showcase-btn beta-city-btn"
+              onClick={onOpenCitySelector}
+              title="⚡ Beta Feature: Fetch live OpenStreetMap data for any city in the world"
+            >
+              <Globe size={16} />
+              <span>Change City</span>
+              <span className="btn-beta-tag">BETA</span>
+            </button>
+          </div>
         </div>
 
         <div className="tool-group showcase-actions">
