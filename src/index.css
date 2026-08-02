@@ -303,6 +303,95 @@ html, body {
   margin: 2px 0;
 }
 
+/* Controls Collapsible & Header styling */
+.controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: -4px;
+}
+
+.controls-header-title {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+}
+
+.collapse-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.collapse-icon-btn:hover {
+  color: var(--text-important);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Collapsed Pill floating bar */
+.controls-collapsed-pill {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: var(--panel-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 30px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  pointer-events: auto;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.collapsed-expand-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-dijkstra);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.collapsed-expand-btn:hover {
+  color: var(--text-important);
+}
+
+.collapsed-play-btn {
+  background: linear-gradient(135deg, #29C7FF, #0077ff);
+  border: none;
+  color: #ffffff;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.collapsed-play-btn:hover {
+  transform: scale(1.08);
+}
+
 /* Floating Bottom Controls Panel */
 .controls-container {
   position: absolute;

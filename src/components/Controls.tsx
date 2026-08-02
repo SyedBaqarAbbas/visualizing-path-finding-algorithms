@@ -1,7 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AlgorithmType, AlgorithmInfo } from '../types/graph';
 import { ALGORITHMS_INFO } from './HUD';
-import { Play, Pause, RotateCcw, Shuffle, Video, Film, HelpCircle, Smartphone, Maximize2 } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Shuffle,
+  Video,
+  Film,
+  HelpCircle,
+  Smartphone,
+  Maximize2,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 
 interface ControlsProps {
   selectedAlgorithm: AlgorithmType;
@@ -38,10 +50,49 @@ export const Controls: React.FC<ControlsProps> = ({
   isMobileFrame,
   onToggleMobileFrame,
 }) => {
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const algorithmsList: AlgorithmInfo[] = Object.values(ALGORITHMS_INFO);
+  const currentAlgInfo = ALGORITHMS_INFO[selectedAlgorithm];
+
+  if (isCollapsed) {
+    return (
+      <div className="controls-collapsed-pill">
+        <button
+          className="collapsed-expand-btn"
+          onClick={() => setIsCollapsed(false)}
+          title="Expand Control Panel"
+        >
+          <ChevronUp size={18} />
+          <span className="collapsed-title">{currentAlgInfo.name}</span>
+        </button>
+
+        <div className="collapsed-actions">
+          <button
+            className="collapsed-play-btn"
+            onClick={onTogglePlay}
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="controls-container">
+      {/* Collapse Handle Header */}
+      <div className="controls-header">
+        <span className="controls-header-title">Control Panel</span>
+        <button
+          className="collapse-icon-btn"
+          onClick={() => setIsCollapsed(true)}
+          title="Collapse Control Panel for Unobstructed Map View"
+        >
+          <ChevronDown size={18} />
+        </button>
+      </div>
+
       {/* Top row: Algorithm selection tabs */}
       <div className="algorithm-tabs">
         {algorithmsList.map((alg) => {
