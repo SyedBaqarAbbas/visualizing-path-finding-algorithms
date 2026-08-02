@@ -15,6 +15,8 @@ import { MapNavigationControls } from './components/MapNavigationControls';
 import { AlgorithmInfoModal } from './components/AlgorithmInfoModal';
 import { CanvasVideoRecorder } from './utils/recorder';
 
+type DragTarget = 'start' | 'dest' | 'map' | null;
+
 export const App: React.FC = () => {
   const [graphData, setGraphData] = useState<CityGraph | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -28,6 +30,8 @@ export const App: React.FC = () => {
   const [panX, setPanX] = useState<number>(0);
   const [panY, setPanY] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragTarget, setDragTarget] = useState<DragTarget>(null);
+  const [isHoveringEndpoint, setIsHoveringEndpoint] = useState<boolean>(false);
 
   // Drag start position
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -250,6 +254,30 @@ export const App: React.FC = () => {
     return () => cancelAnimationFrame(loopId);
   }, [graphData, startNodeId, destNodeId, isComplete, selectedAlg, computeTimeMs, isRecording]);
 
+  // Fast nearest node lookup in screen space
+  const findNearestNode = useCallback(
+    (screenX: number, screenY: number): number | null => {
+      if (!graphData || !rendererRef.current) return null;
+      let minDistanceSq = Infinity;
+      let nearestId = 0;
+
+      for (let i = 0; i < graphData.nodes.length; i++) {
+        const node = graphData.nodes[i];
+        const [nx, ny] = rendererRef.current.toScreenCoords(node.x, node.y);
+        const dx = screenX - nx;
+        const dy = screenY - ny;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < minDistanceSq) {
+          minDistanceSq = distSq;
+          nearestId = node.id;
+        }
+      }
+
+      return nearestId;
+    },
+    [graphData]
+  );
+
   // Run pathfinding worker and start exploration playback
   const runAlgorithm = useCallback(
     (alg: AlgorithmType) => {
@@ -353,30 +381,136 @@ export const App: React.FC = () => {
     });
   };
 
-  // Mouse Drag Handlers
+  // Mouse Drag & Endpoint Selection Handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    if (!wrapperRef.current || !rendererRef.current || !graphData || startNodeId === null || destNodeId === null)
+      return;
+
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const startNode = graphData.nodes[startNodeId];
+    const destNode = graphData.nodes[destNodeId];
+    const [sx, sy] = rendererRef.current.toScreenCoords(startNode.x, startNode.y);
+    const [dx, dy] = rendererRef.current.toScreenCoords(destNode.x, destNode.y);
+
+    const distToStart = Math.hypot(mouseX - sx, mouseY - sy);
+    const distToDest = Math.hypot(mouseX - dx, mouseY - dy);
+
+    const HIT_RADIUS = 28; // 28px hit radius for start/dest node circles
+
+    if (distToStart < HIT_RADIUS && distToStart <= distToDest) {
+      setDragTarget('start');
+      setIsDragging(true);
+      return;
+    } else if (distToDest < HIT_RADIUS) {
+      setDragTarget('dest');
+      setIsDragging(true);
+      return;
+    }
+
+    setDragTarget('map');
     setIsDragging(true);
     dragStartRef.current = { x: e.clientX - panX, y: e.clientY - panY };
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
-    const newPanX = e.clientX - dragStartRef.current.x;
-    const newPanY = e.clientY - dragStartRef.current.y;
-    setPanX(newPanX);
-    setPanY(newPanY);
-    updateCameraTransform(zoom, newPanX, newPanY);
+    if (!wrapperRef.current || !rendererRef.current || !graphData || startNodeId === null || destNodeId === null)
+      return;
+
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Check hover proximity to endpoints when not dragging
+    if (!isDragging) {
+      const startNode = graphData.nodes[startNodeId];
+      const destNode = graphData.nodes[destNodeId];
+      const [sx, sy] = rendererRef.current.toScreenCoords(startNode.x, startNode.y);
+      const [dx, dy] = rendererRef.current.toScreenCoords(destNode.x, destNode.y);
+
+      const distToStart = Math.hypot(mouseX - sx, mouseY - sy);
+      const distToDest = Math.hypot(mouseX - dx, mouseY - dy);
+
+      setIsHoveringEndpoint(distToStart < 28 || distToDest < 28);
+      return;
+    }
+
+    // Dragging logic
+    if (dragTarget === 'start') {
+      const nearestId = findNearestNode(mouseX, mouseY);
+      if (nearestId !== null && nearestId !== startNodeId && nearestId !== destNodeId) {
+        setStartNodeId(nearestId);
+        // Clear previous exploration line when moving endpoints
+        currentEventArrayRef.current = null;
+        currentCursorRef.current = 0;
+        rendererRef.current?.clearExploration();
+        setIsComplete(false);
+      }
+    } else if (dragTarget === 'dest') {
+      const nearestId = findNearestNode(mouseX, mouseY);
+      if (nearestId !== null && nearestId !== destNodeId && nearestId !== startNodeId) {
+        setDestNodeId(nearestId);
+        currentEventArrayRef.current = null;
+        currentCursorRef.current = 0;
+        rendererRef.current?.clearExploration();
+        setIsComplete(false);
+      }
+    } else if (dragTarget === 'map') {
+      const newPanX = e.clientX - dragStartRef.current.x;
+      const newPanY = e.clientY - dragStartRef.current.y;
+      setPanX(newPanX);
+      setPanY(newPanY);
+      updateCameraTransform(zoom, newPanX, newPanY);
+    }
   };
 
-  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseUp = () => {
+    if (dragTarget === 'start' || dragTarget === 'dest') {
+      // Re-run pathfinding instantly from newly placed start/destination points!
+      runAlgorithm(selectedAlg);
+    }
+    setIsDragging(false);
+    setDragTarget(null);
+  };
 
-  // Touch Handlers for Mobile / Tablet Pinch-to-Zoom & Pan
+  // Touch Handlers for Mobile / Tablet Pinch-to-Zoom, Pan & Endpoint Drag
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!wrapperRef.current || !rendererRef.current || !graphData || startNodeId === null || destNodeId === null)
+      return;
+
     if (e.touches.length === 1) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const touchX = e.touches[0].clientX - rect.left;
+      const touchY = e.touches[0].clientY - rect.top;
+
+      const startNode = graphData.nodes[startNodeId];
+      const destNode = graphData.nodes[destNodeId];
+      const [sx, sy] = rendererRef.current.toScreenCoords(startNode.x, startNode.y);
+      const [dx, dy] = rendererRef.current.toScreenCoords(destNode.x, destNode.y);
+
+      const distToStart = Math.hypot(touchX - sx, touchY - sy);
+      const distToDest = Math.hypot(touchX - dx, touchY - dy);
+
+      const HIT_RADIUS = 36;
+
+      if (distToStart < HIT_RADIUS && distToStart <= distToDest) {
+        setDragTarget('start');
+        setIsDragging(true);
+        return;
+      } else if (distToDest < HIT_RADIUS) {
+        setDragTarget('dest');
+        setIsDragging(true);
+        return;
+      }
+
+      setDragTarget('map');
       setIsDragging(true);
       dragStartRef.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY };
     } else if (e.touches.length === 2) {
+      setDragTarget('map');
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       touchDistRef.current = Math.hypot(dx, dy);
@@ -384,12 +518,38 @@ export const App: React.FC = () => {
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 1 && isDragging) {
-      const newPanX = e.touches[0].clientX - dragStartRef.current.x;
-      const newPanY = e.touches[0].clientY - dragStartRef.current.y;
-      setPanX(newPanX);
-      setPanY(newPanY);
-      updateCameraTransform(zoom, newPanX, newPanY);
+    if (!wrapperRef.current || !isDragging) return;
+
+    if (e.touches.length === 1) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const touchX = e.touches[0].clientX - rect.left;
+      const touchY = e.touches[0].clientY - rect.top;
+
+      if (dragTarget === 'start') {
+        const nearestId = findNearestNode(touchX, touchY);
+        if (nearestId !== null && nearestId !== startNodeId && nearestId !== destNodeId) {
+          setStartNodeId(nearestId);
+          currentEventArrayRef.current = null;
+          currentCursorRef.current = 0;
+          rendererRef.current?.clearExploration();
+          setIsComplete(false);
+        }
+      } else if (dragTarget === 'dest') {
+        const nearestId = findNearestNode(touchX, touchY);
+        if (nearestId !== null && nearestId !== destNodeId && nearestId !== startNodeId) {
+          setDestNodeId(nearestId);
+          currentEventArrayRef.current = null;
+          currentCursorRef.current = 0;
+          rendererRef.current?.clearExploration();
+          setIsComplete(false);
+        }
+      } else if (dragTarget === 'map') {
+        const newPanX = e.touches[0].clientX - dragStartRef.current.x;
+        const newPanY = e.touches[0].clientY - dragStartRef.current.y;
+        setPanX(newPanX);
+        setPanY(newPanY);
+        updateCameraTransform(zoom, newPanX, newPanY);
+      }
     } else if (e.touches.length === 2 && touchDistRef.current !== null) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -404,7 +564,11 @@ export const App: React.FC = () => {
   };
 
   const handleTouchEnd = () => {
+    if (dragTarget === 'start' || dragTarget === 'dest') {
+      runAlgorithm(selectedAlg);
+    }
     setIsDragging(false);
+    setDragTarget(null);
     touchDistRef.current = null;
   };
 
@@ -529,11 +693,18 @@ export const App: React.FC = () => {
     );
   }
 
+  const getWrapperCursorClass = () => {
+    if (dragTarget === 'start' || dragTarget === 'dest') return 'dragging-endpoint';
+    if (isHoveringEndpoint) return 'hover-endpoint';
+    if (isDragging) return 'dragging';
+    return '';
+  };
+
   return (
     <div className={`app-container ${isMobileFrame ? 'mobile-frame-mode' : ''}`}>
-      {/* Canvas Visualizer Container with Mouse/Touch Pan & Zoom */}
+      {/* Canvas Visualizer Container with Mouse/Touch Pan, Zoom & Endpoint Drag */}
       <div
-        className={`visualizer-wrapper ${isDragging ? 'dragging' : ''}`}
+        className={`visualizer-wrapper ${getWrapperCursorClass()}`}
         ref={wrapperRef}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}

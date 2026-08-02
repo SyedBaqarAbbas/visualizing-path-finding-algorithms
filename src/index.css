@@ -64,6 +64,14 @@ html, body {
   cursor: grabbing;
 }
 
+.visualizer-wrapper.hover-endpoint {
+  cursor: pointer;
+}
+
+.visualizer-wrapper.dragging-endpoint {
+  cursor: grabbing;
+}
+
 /* Phone Frame mode toggle if active */
 .app-container.mobile-frame-mode {
   display: flex;
