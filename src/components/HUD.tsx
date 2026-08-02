@@ -86,7 +86,7 @@ export const HUD: React.FC<HUDProps> = ({
     <div className="hud-container">
       {/* Top Banner */}
       <div className="header-banner">
-        <span>Visualizing all pathfinding algorithms within 30 seconds 🗺️</span>
+        <span>Visualizing all pathfinding algorithms within 30 seconds</span>
       </div>
 
       {/* Main HUD overlay */}

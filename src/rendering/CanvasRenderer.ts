@@ -243,7 +243,7 @@ export class CanvasRenderer {
     nodesCount: number,
     computeTimeMs: number,
     cityName: string,
-    topHeaderTitle: string = 'Visualizing all pathfinding algorithms within 30 seconds 🗺️'
+    topHeaderTitle: string = 'Visualizing all pathfinding algorithms within 30 seconds'
   ) {
     const ctx = targetCanvas.getContext('2d')!;
     targetCanvas.width = Math.floor(this.width * this.dpr);
