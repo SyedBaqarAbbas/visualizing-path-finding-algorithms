@@ -23,15 +23,18 @@ interface OSMWay {
 
 type OSMElement = OSMNode | OSMWay;
 
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+
 const degToRad = (deg: number) => (deg * Math.PI) / 180;
 
+// Geocode city query using OpenStreetMap Nominatim API (HTTPS + CORS enabled)
 export async function geocodeCity(query: string): Promise<{ name: string; lat: number; lon: number }> {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'VisualizingPathFindingAlgorithms/1.0',
-    },
-  });
+  const res = await fetch(url);
 
   if (!res.ok) {
     throw new Error(`Geocoding failed with status: ${res.status}`);
@@ -51,11 +54,12 @@ export async function geocodeCity(query: string): Promise<{ name: string; lat: n
   };
 }
 
+// Fetch street network from Overpass API (HTTPS + CORS enabled)
 export async function fetchCityGraphFromOSM(
   cityName: string,
   centerLat: number,
   centerLon: number,
-  radiusKm: number = 2.5
+  radiusKm: number = 2.2
 ): Promise<CityGraph> {
   const latDelta = radiusKm / 111.0;
   const lonDelta = radiusKm / (111.0 * Math.cos(degToRad(centerLat)));
@@ -73,11 +77,28 @@ out body;
 >;
 out skel qt;`;
 
-  const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
-  const res = await fetch(overpassUrl);
+  let res: Response | null = null;
+  let lastError: Error | null = null;
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch street network from Overpass API (status: ${res.status})`);
+  // Try Overpass endpoints with fallback
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const overpassUrl = `${endpoint}?data=${encodeURIComponent(overpassQuery)}`;
+      const attempt = await fetch(overpassUrl);
+      if (attempt.ok) {
+        res = attempt;
+        break;
+      }
+    } catch (err: any) {
+      lastError = err;
+    }
+  }
+
+  if (!res) {
+    throw new Error(
+      lastError?.message ||
+        `Overpass API is currently busy or unreachable. Please try again in a few seconds.`
+    );
   }
 
   const json = await res.json();
