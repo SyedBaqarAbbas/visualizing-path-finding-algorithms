@@ -1,12 +1,6 @@
 import { GraphEdge, GraphNode, EVENT_TYPE } from '../types/graph';
 import { drawGlowingPoint, drawFinalPath } from './effects';
 
-export interface ViewportTransform {
-  scale: number;
-  offsetX: number;
-  offsetY: number;
-}
-
 export class CanvasRenderer {
   private baseCanvas: HTMLCanvasElement;
   private explorationCanvas: HTMLCanvasElement;
@@ -20,8 +14,13 @@ export class CanvasRenderer {
   private height: number = 0;
   private dpr: number = 1;
 
-  // Viewport padding to ensure nodes aren't cut off
-  private padding: number = 30;
+  // World aspect ratio (width / height in meters). Default ~1.0 for Berlin
+  private worldAspectRatio: number = 1.0018;
+
+  // Viewport paddings to prevent overlap with HUD and bottom controls
+  private paddingX: number = 40;
+  private paddingTop: number = 100;
+  private paddingBottom: number = 170;
 
   constructor(
     baseCanvas: HTMLCanvasElement,
@@ -35,6 +34,16 @@ export class CanvasRenderer {
     this.baseCtx = baseCanvas.getContext('2d', { alpha: true })!;
     this.explorationCtx = explorationCanvas.getContext('2d', { alpha: true })!;
     this.overlayCtx = overlayCanvas.getContext('2d', { alpha: true })!;
+  }
+
+  public setWorldBounds(bounds?: { xmin: number; ymin: number; xmax: number; ymax: number }) {
+    if (bounds) {
+      const w = bounds.xmax - bounds.xmin;
+      const h = bounds.ymax - bounds.ymin;
+      if (h > 0) {
+        this.worldAspectRatio = w / h;
+      }
+    }
   }
 
   public resize(cssWidth: number, cssHeight: number) {
@@ -57,12 +66,32 @@ export class CanvasRenderer {
     this.overlayCtx.scale(this.dpr, this.dpr);
   }
 
-  // Convert normalized [0..1] x, y coordinates to canvas pixels with padding
+  // Convert normalized [0..1] x, y coordinates to canvas pixels preserving 1:1 metric aspect ratio
   public toScreenCoords(normX: number, normY: number): [number, number] {
-    const usableW = this.width - this.padding * 2;
-    const usableH = this.height - this.padding * 2;
-    const px = this.padding + normX * usableW;
-    const py = this.padding + normY * usableH;
+    const availableW = Math.max(10, this.width - this.paddingX * 2);
+    const availableH = Math.max(10, this.height - this.paddingTop - this.paddingBottom);
+
+    const screenAspect = availableW / availableH;
+
+    let renderW: number;
+    let renderH: number;
+
+    if (screenAspect > this.worldAspectRatio) {
+      // Screen area is wider than map -> fit height, center horizontally
+      renderH = availableH;
+      renderW = availableH * this.worldAspectRatio;
+    } else {
+      // Screen area is taller than map -> fit width, center vertically
+      renderW = availableW;
+      renderH = availableW / this.worldAspectRatio;
+    }
+
+    const offsetX = (this.width - renderW) / 2;
+    const offsetY = this.paddingTop + (availableH - renderH) / 2;
+
+    const px = offsetX + normX * renderW;
+    const py = offsetY + normY * renderH;
+
     return [px, py];
   }
 
@@ -86,9 +115,9 @@ export class CanvasRenderer {
       }
     }
 
-    // Subtle dark blue road network styling matching image.png
+    // Subtle dark blue road network styling
     this.baseCtx.strokeStyle = 'rgba(39, 55, 88, 0.58)';
-    this.baseCtx.lineWidth = 0.65;
+    this.baseCtx.lineWidth = 0.7;
     this.baseCtx.stroke();
     this.baseCtx.restore();
   }
@@ -114,7 +143,7 @@ export class CanvasRenderer {
     // Relaxed cyan edges stroke
     this.explorationCtx.beginPath();
     this.explorationCtx.strokeStyle = 'rgba(27, 207, 255, 0.92)';
-    this.explorationCtx.lineWidth = 1.15;
+    this.explorationCtx.lineWidth = 1.25;
 
     for (let i = startCursor; i < endCursor; i++) {
       const idx = i * 2;
@@ -169,7 +198,7 @@ export class CanvasRenderer {
     }
   }
 
-  // Composite canvas export for video recording (merges base, exploration, overlay + HUD into 1 frame)
+  // Composite canvas export for video recording
   public renderCompositeToCanvas(
     targetCanvas: HTMLCanvasElement,
     algorithmName: string,
@@ -199,8 +228,7 @@ export class CanvasRenderer {
     // 4. Overlay Layer
     ctx.drawImage(this.overlayCanvas, 0, 0, this.width, this.height);
 
-    // 5. Draw Header & HUD Text onto Composite Canvas (matching image.png)
-    // Top header banner
+    // 5. Text overlays onto Composite Canvas
     ctx.font = '600 16px "Inter", sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.textAlign = 'center';
@@ -208,10 +236,9 @@ export class CanvasRenderer {
     ctx.shadowBlur = 6;
     ctx.fillText(topHeaderTitle, this.width / 2, 42);
 
-    // HUD Top Left: Algorithm Title
-    const hudTop = Math.floor(this.height * 0.14);
-    const hudLeft = Math.floor(this.width * 0.1);
-    const hudRight = Math.floor(this.width * 0.9);
+    const hudTop = Math.floor(this.height * 0.12);
+    const hudLeft = Math.floor(this.width * 0.08);
+    const hudRight = Math.floor(this.width * 0.92);
 
     ctx.font = '800 24px "Outfit", sans-serif';
     ctx.fillStyle = '#71b6ff';
@@ -220,7 +247,6 @@ export class CanvasRenderer {
     ctx.shadowBlur = 10;
     ctx.fillText(algorithmName, hudLeft, hudTop);
 
-    // HUD Top Right: Complexity & Stats
     ctx.font = '500 11px "JetBrains Mono", monospace';
     ctx.fillStyle = '#6b7280';
     ctx.textAlign = 'right';
@@ -235,8 +261,7 @@ export class CanvasRenderer {
       hudTop + 14
     );
 
-    // Bottom City Name
-    ctx.font = '900 34px "Outfit", sans-serif';
+    ctx.font = '900 36px "Outfit", sans-serif';
     ctx.fillStyle = '#64aaff';
     ctx.textAlign = 'center';
     ctx.shadowColor = 'rgba(100, 170, 255, 0.5)';

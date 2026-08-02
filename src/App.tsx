@@ -124,6 +124,9 @@ export const App: React.FC = () => {
     const handleResize = () => {
       if (wrapperRef.current && rendererRef.current) {
         const { clientWidth, clientHeight } = wrapperRef.current;
+        if (graphData) {
+          rendererRef.current.setWorldBounds(graphData.bounds);
+        }
         rendererRef.current.resize(clientWidth, clientHeight);
         if (graphData) {
           rendererRef.current.drawBaseNetwork(graphData.edges);
