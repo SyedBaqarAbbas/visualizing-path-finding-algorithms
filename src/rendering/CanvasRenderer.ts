@@ -1,4 +1,4 @@
-import { GraphEdge, GraphNode, EVENT_TYPE, ColorScheme, ALGORITHM_COLORS, ENDPOINT_COLORS } from '../types/graph';
+import { GraphEdge, GraphNode, EVENT_TYPE, ColorScheme, ENDPOINT_COLORS } from '../types/graph';
 import { drawGlowingPoint, drawFinalPath } from './effects';
 
 export class CanvasRenderer {
@@ -21,6 +21,11 @@ export class CanvasRenderer {
   private paddingX: number = 40;
   private paddingTop: number = 100;
   private paddingBottom: number = 170;
+
+  // Camera Pan & Zoom Transform
+  private zoom: number = 1.0;
+  private panX: number = 0;
+  private panY: number = 0;
 
   constructor(
     baseCanvas: HTMLCanvasElement,
@@ -46,6 +51,22 @@ export class CanvasRenderer {
     }
   }
 
+  public setTransform(zoom: number, panX: number, panY: number) {
+    this.zoom = zoom;
+    this.panX = panX;
+    this.panY = panY;
+  }
+
+  public getTransform() {
+    return { zoom: this.zoom, panX: this.panX, panY: this.panY };
+  }
+
+  public resetTransform() {
+    this.zoom = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+  }
+
   public resize(cssWidth: number, cssHeight: number) {
     this.dpr = window.devicePixelRatio || 1;
     this.width = cssWidth;
@@ -66,7 +87,7 @@ export class CanvasRenderer {
     this.overlayCtx.scale(this.dpr, this.dpr);
   }
 
-  // Convert normalized [0..1] x, y coordinates to canvas pixels preserving 1:1 metric aspect ratio
+  // Convert normalized [0..1] x, y coordinates to canvas pixels applying camera zoom & pan transform
   public toScreenCoords(normX: number, normY: number): [number, number] {
     const availableW = Math.max(10, this.width - this.paddingX * 2);
     const availableH = Math.max(10, this.height - this.paddingTop - this.paddingBottom);
@@ -84,13 +105,20 @@ export class CanvasRenderer {
       renderH = availableW / this.worldAspectRatio;
     }
 
-    const offsetX = (this.width - renderW) / 2;
-    const offsetY = this.paddingTop + (availableH - renderH) / 2;
+    const unzoomedOffsetX = (this.width - renderW) / 2;
+    const unzoomedOffsetY = this.paddingTop + (availableH - renderH) / 2;
 
-    const px = offsetX + normX * renderW;
-    const py = offsetY + normY * renderH;
+    const baseX = unzoomedOffsetX + normX * renderW;
+    const baseY = unzoomedOffsetY + normY * renderH;
 
-    return [px, py];
+    // Center pivot for zoom
+    const centerX = this.width / 2;
+    const centerY = this.height / 2;
+
+    const screenX = (baseX - centerX) * this.zoom + centerX + this.panX;
+    const screenY = (baseY - centerY) * this.zoom + centerY + this.panY;
+
+    return [screenX, screenY];
   }
 
   // Clear base canvas and draw dark background road network (#1B2942 at 55% opacity)
@@ -115,7 +143,8 @@ export class CanvasRenderer {
 
     // Unexplored roads: #1B2942 at 55% opacity (rgba(27, 41, 66, 0.55))
     this.baseCtx.strokeStyle = ENDPOINT_COLORS.unexplored;
-    this.baseCtx.lineWidth = 0.65;
+    // Scale line width slightly with zoom for clear visibility
+    this.baseCtx.lineWidth = Math.max(0.4, 0.65 * Math.sqrt(this.zoom));
     this.baseCtx.stroke();
     this.baseCtx.restore();
   }
@@ -125,7 +154,7 @@ export class CanvasRenderer {
     this.explorationCtx.clearRect(0, 0, this.width, this.height);
   }
 
-  // Incremental exploration drawing using the current algorithm's assigned neon color
+  // Incremental or batch exploration drawing
   public drawExplorationBatch(
     edges: GraphEdge[],
     eventArray: Uint32Array,
@@ -139,10 +168,9 @@ export class CanvasRenderer {
     this.explorationCtx.lineCap = 'round';
     this.explorationCtx.lineJoin = 'round';
 
-    // Active exploration stroke using full-intensity assigned color
     this.explorationCtx.beginPath();
     this.explorationCtx.strokeStyle = colorScheme.rgba(0.92);
-    this.explorationCtx.lineWidth = 1.25;
+    this.explorationCtx.lineWidth = Math.max(0.8, 1.25 * Math.sqrt(this.zoom));
 
     for (let i = startCursor; i < endCursor; i++) {
       const idx = i * 2;
@@ -166,7 +194,18 @@ export class CanvasRenderer {
     this.explorationCtx.restore();
   }
 
-  // Draw overlay canvas elements (Start #FF5349, Destination #25F58B, Final Path, pulses)
+  // Redraw all explored paths up to endCursor (used during panning / zooming)
+  public redrawExploration(
+    edges: GraphEdge[],
+    eventArray: Uint32Array,
+    endCursor: number,
+    colorScheme: ColorScheme
+  ) {
+    this.clearExploration();
+    this.drawExplorationBatch(edges, eventArray, 0, endCursor, colorScheme);
+  }
+
+  // Draw overlay canvas elements (Start, Destination, Final Path, pulses)
   public drawOverlay(
     startNode: GraphNode | null,
     destNode: GraphNode | null,
@@ -177,7 +216,6 @@ export class CanvasRenderer {
   ) {
     this.overlayCtx.clearRect(0, 0, this.width, this.height);
 
-    // Draw final path if pathProgress > 0 using additive luminous glow
     if (pathEdges.length > 0 && pathProgress > 0) {
       const pointsList: [number, number][][] = pathEdges.map((edge) =>
         edge.points.map((pt) => this.toScreenCoords(pt[0], pt[1]))
@@ -185,13 +223,11 @@ export class CanvasRenderer {
       drawFinalPath(this.overlayCtx, pointsList, colorScheme, pathProgress);
     }
 
-    // Draw start node (#FF5349 red)
     if (startNode) {
       const [sx, sy] = this.toScreenCoords(startNode.x, startNode.y);
       drawGlowingPoint(this.overlayCtx, sx, sy, ENDPOINT_COLORS.start, timeMs, 'START');
     }
 
-    // Draw destination node (#25F58B green)
     if (destNode) {
       const [dx, dy] = this.toScreenCoords(destNode.x, destNode.y);
       drawGlowingPoint(this.overlayCtx, dx, dy, ENDPOINT_COLORS.destination, timeMs, 'DESTINATION');
@@ -216,20 +252,13 @@ export class CanvasRenderer {
     ctx.save();
     ctx.scale(this.dpr, this.dpr);
 
-    // 1. Background #020406
     ctx.fillStyle = '#020406';
     ctx.fillRect(0, 0, this.width, this.height);
 
-    // 2. Base Canvas Layer
     ctx.drawImage(this.baseCanvas, 0, 0, this.width, this.height);
-
-    // 3. Exploration Layer
     ctx.drawImage(this.explorationCanvas, 0, 0, this.width, this.height);
-
-    // 4. Overlay Layer
     ctx.drawImage(this.overlayCanvas, 0, 0, this.width, this.height);
 
-    // 5. Text overlays onto Composite Canvas
     ctx.font = '600 16px "Inter", sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.textAlign = 'center';
@@ -241,7 +270,6 @@ export class CanvasRenderer {
     const hudLeft = Math.floor(this.width * 0.08);
     const hudRight = Math.floor(this.width * 0.92);
 
-    // Algorithm Heading: softer desaturated color
     ctx.font = '800 28px "Outfit", sans-serif';
     ctx.fillStyle = colorScheme.soft;
     ctx.textAlign = 'left';
@@ -249,7 +277,6 @@ export class CanvasRenderer {
     ctx.shadowBlur = 10;
     ctx.fillText(algorithmName, hudLeft, hudTop);
 
-    // Complexity & Stats: Neutral text #A0A5AC, values #E5E7EB
     ctx.font = '500 11px "JetBrains Mono", monospace';
     ctx.fillStyle = '#A0A5AC';
     ctx.textAlign = 'right';

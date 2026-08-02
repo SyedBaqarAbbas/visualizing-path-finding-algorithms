@@ -55,6 +55,13 @@ html, body {
   overflow: hidden;
   background: var(--bg-color);
   border: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.visualizer-wrapper:active,
+.visualizer-wrapper.dragging {
+  cursor: grabbing;
 }
 
 /* Phone Frame mode toggle if active */
@@ -223,6 +230,67 @@ html, body {
   letter-spacing: 3px;
   margin-bottom: 90px;
   transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* Floating Navigation Controls */
+.map-nav-controls {
+  position: absolute;
+  top: 100px;
+  right: 28px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
+}
+
+.nav-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-important);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+  background: rgba(41, 199, 255, 0.2);
+  color: var(--color-dijkstra);
+  border-color: var(--color-dijkstra);
+}
+
+.nav-btn.highlight {
+  background: rgba(41, 199, 255, 0.15);
+  color: var(--color-dijkstra);
+  border-color: rgba(41, 199, 255, 0.4);
+}
+
+.zoom-indicator {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 2px 0;
+  text-align: center;
+}
+
+.nav-divider {
+  width: 20px;
+  height: 1px;
+  background: rgba(45, 65, 95, 0.5);
+  margin: 2px 0;
 }
 
 /* Floating Bottom Controls Panel */

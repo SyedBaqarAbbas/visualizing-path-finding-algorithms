@@ -11,6 +11,7 @@ import {
 import { CanvasRenderer } from './rendering/CanvasRenderer';
 import { HUD, ALGORITHMS_INFO } from './components/HUD';
 import { Controls } from './components/Controls';
+import { MapNavigationControls } from './components/MapNavigationControls';
 import { AlgorithmInfoModal } from './components/AlgorithmInfoModal';
 import { CanvasVideoRecorder } from './utils/recorder';
 
@@ -19,8 +20,18 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Layout mode: default to Fullscreen desktop view (false = full bleed desktop)
+  // Layout mode
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(false);
+
+  // Camera Pan & Zoom state
+  const [zoom, setZoom] = useState<number>(1.0);
+  const [panX, setPanX] = useState<number>(0);
+  const [panY, setPanY] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Drag start position
+  const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const touchDistRef = useRef<number | null>(null);
 
   // Selected Nodes
   const [startNodeId, setStartNodeId] = useState<number | null>(null);
@@ -44,7 +55,7 @@ export const App: React.FC = () => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isAutoShowcase, setIsAutoShowcase] = useState<boolean>(false);
 
-  // Refs
+  // Canvas Refs
   const wrapperRef = useRef<HTMLDivElement>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
   const explorationCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -58,8 +69,10 @@ export const App: React.FC = () => {
   // Adjacency list stored in ref for fast worker posts
   const adjacencyRef = useRef<AdjacencyEdge[][]>([]);
 
-  // Cached algorithm result data
+  // Cached algorithm result & exploration state
   const currentResultRef = useRef<AlgorithmResult | null>(null);
+  const currentEventArrayRef = useRef<Uint32Array | null>(null);
+  const currentCursorRef = useRef<number>(0);
   const animFrameIdRef = useRef<number | null>(null);
 
   // Load Graph Data
@@ -111,6 +124,22 @@ export const App: React.FC = () => {
       });
   }, []);
 
+  // Update canvas renderer camera transform on pan/zoom changes
+  const updateCameraTransform = useCallback((newZoom: number, newPanX: number, newPanY: number) => {
+    if (!rendererRef.current || !graphData) return;
+    rendererRef.current.setTransform(newZoom, newPanX, newPanY);
+    rendererRef.current.drawBaseNetwork(graphData.edges);
+
+    if (currentEventArrayRef.current && currentCursorRef.current > 0) {
+      rendererRef.current.redrawExploration(
+        graphData.edges,
+        currentEventArrayRef.current,
+        currentCursorRef.current,
+        ALGORITHM_COLORS[selectedAlg]
+      );
+    }
+  }, [graphData, selectedAlg]);
+
   // Initialize CanvasRenderer and handle resize
   useEffect(() => {
     if (!baseCanvasRef.current || !explorationCanvasRef.current || !overlayCanvasRef.current) return;
@@ -129,9 +158,20 @@ export const App: React.FC = () => {
           rendererRef.current.setWorldBounds(graphData.bounds);
         }
         rendererRef.current.resize(clientWidth, clientHeight);
+        rendererRef.current.setTransform(zoom, panX, panY);
+
         if (graphData) {
           rendererRef.current.drawBaseNetwork(graphData.edges);
-          // Redraw overlay
+
+          if (currentEventArrayRef.current && currentCursorRef.current > 0) {
+            rendererRef.current.redrawExploration(
+              graphData.edges,
+              currentEventArrayRef.current,
+              currentCursorRef.current,
+              ALGORITHM_COLORS[selectedAlg]
+            );
+          }
+
           const startNode = startNodeId !== null ? graphData.nodes[startNodeId] : null;
           const destNode = destNodeId !== null ? graphData.nodes[destNodeId] : null;
           rendererRef.current.drawOverlay(
@@ -139,7 +179,7 @@ export const App: React.FC = () => {
             destNode,
             [],
             0,
-            ALGORITHMS_INFO[selectedAlg] ? ALGORITHM_COLORS[selectedAlg] : ALGORITHM_COLORS.dijkstra,
+            ALGORITHM_COLORS[selectedAlg] || ALGORITHM_COLORS.dijkstra,
             performance.now()
           );
         }
@@ -149,7 +189,7 @@ export const App: React.FC = () => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [graphData, startNodeId, destNodeId, isMobileFrame, selectedAlg]);
+  }, [graphData, startNodeId, destNodeId, isMobileFrame, selectedAlg, zoom, panX, panY]);
 
   // Initialize Web Worker
   useEffect(() => {
@@ -224,6 +264,8 @@ export const App: React.FC = () => {
       setIsComplete(false);
       setSettledCount(0);
 
+      currentEventArrayRef.current = null;
+      currentCursorRef.current = 0;
       rendererRef.current?.clearExploration();
 
       const workerNodes = graphData.nodes.map((n) => ({ id: n.id, px: n.px, py: n.py }));
@@ -235,8 +277,8 @@ export const App: React.FC = () => {
         setComputeTimeMs(res.computeTimeMs);
         setPathLengthMeters(res.pathLengthMeters);
 
-        // Start playback animation
         const eventArray = new Uint32Array(res.eventBuffer);
+        currentEventArrayRef.current = eventArray;
         const totalEvents = res.eventCount;
 
         let cursor = 0;
@@ -257,6 +299,7 @@ export const App: React.FC = () => {
               colorScheme
             );
             cursor = targetCursor;
+            currentCursorRef.current = targetCursor;
             setSettledCount(Math.floor((targetCursor / totalEvents) * res.settledNodesCount));
           }
 
@@ -266,6 +309,7 @@ export const App: React.FC = () => {
             setIsExploring(false);
             setIsComplete(true);
             setIsPlaying(false);
+            currentCursorRef.current = totalEvents;
             setSettledCount(res.settledNodesCount);
           }
         };
@@ -283,6 +327,106 @@ export const App: React.FC = () => {
     },
     [graphData, startNodeId, destNodeId, durationMs]
   );
+
+  // Zoom & Pan Wheel Handler
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+
+    setZoom((prevZoom) => {
+      const newZoom = Math.min(25, Math.max(0.5, prevZoom * zoomFactor));
+      if (!wrapperRef.current) return newZoom;
+
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left - rect.width / 2;
+      const mouseY = e.clientY - rect.top - rect.height / 2;
+
+      const scaleChange = newZoom - prevZoom;
+      const newPanX = panX - (mouseX * scaleChange) / prevZoom;
+      const newPanY = panY - (mouseY * scaleChange) / prevZoom;
+
+      setPanX(newPanX);
+      setPanY(newPanY);
+      updateCameraTransform(newZoom, newPanX, newPanY);
+
+      return newZoom;
+    });
+  };
+
+  // Mouse Drag Handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX - panX, y: e.clientY - panY };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const newPanX = e.clientX - dragStartRef.current.x;
+    const newPanY = e.clientY - dragStartRef.current.y;
+    setPanX(newPanX);
+    setPanY(newPanY);
+    updateCameraTransform(zoom, newPanX, newPanY);
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  // Touch Handlers for Mobile / Tablet Pinch-to-Zoom & Pan
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      dragStartRef.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY };
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchDistRef.current = Math.hypot(dx, dy);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1 && isDragging) {
+      const newPanX = e.touches[0].clientX - dragStartRef.current.x;
+      const newPanY = e.touches[0].clientY - dragStartRef.current.y;
+      setPanX(newPanX);
+      setPanY(newPanY);
+      updateCameraTransform(zoom, newPanX, newPanY);
+    } else if (e.touches.length === 2 && touchDistRef.current !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const newDist = Math.hypot(dx, dy);
+      const scale = newDist / touchDistRef.current;
+      const newZoom = Math.min(25, Math.max(0.5, zoom * scale));
+
+      setZoom(newZoom);
+      touchDistRef.current = newDist;
+      updateCameraTransform(newZoom, panX, panY);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    touchDistRef.current = null;
+  };
+
+  // Zoom Button Handlers
+  const handleZoomIn = () => {
+    const newZoom = Math.min(25, zoom * 1.35);
+    setZoom(newZoom);
+    updateCameraTransform(newZoom, panX, panY);
+  };
+
+  const handleZoomOut = () => {
+    const newZoom = Math.max(0.5, zoom / 1.35);
+    setZoom(newZoom);
+    updateCameraTransform(newZoom, panX, panY);
+  };
+
+  const handleResetView = () => {
+    setZoom(1.0);
+    setPanX(0);
+    setPanY(0);
+    updateCameraTransform(1.0, 0, 0);
+  };
 
   // Toggle Play / Pause
   const handleTogglePlay = () => {
@@ -303,6 +447,8 @@ export const App: React.FC = () => {
     setSettledCount(0);
     setComputeTimeMs(0);
     currentResultRef.current = null;
+    currentEventArrayRef.current = null;
+    currentCursorRef.current = 0;
     rendererRef.current?.clearExploration();
   };
 
@@ -336,14 +482,12 @@ export const App: React.FC = () => {
     setIsAutoShowcase(true);
     const algSequence: AlgorithmType[] = ['dijkstra', 'astar', 'bidirectional', 'bfs', 'greedy', 'dfs'];
     
-    // Set 4.0s per algorithm sequence
     setDurationMs(4000);
 
     for (let i = 0; i < algSequence.length; i++) {
       const alg = algSequence[i];
       setSelectedAlg(alg);
       runAlgorithm(alg);
-      // Wait for algorithm animation + pause
       await new Promise((resolve) => setTimeout(resolve, 4800));
     }
 
@@ -387,8 +531,19 @@ export const App: React.FC = () => {
 
   return (
     <div className={`app-container ${isMobileFrame ? 'mobile-frame-mode' : ''}`}>
-      {/* Canvas Visualizer Container */}
-      <div className="visualizer-wrapper" ref={wrapperRef}>
+      {/* Canvas Visualizer Container with Mouse/Touch Pan & Zoom */}
+      <div
+        className={`visualizer-wrapper ${isDragging ? 'dragging' : ''}`}
+        ref={wrapperRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Layer 1: Base road network */}
         <canvas ref={baseCanvasRef} />
         {/* Layer 2: Incremental exploration */}
@@ -409,6 +564,14 @@ export const App: React.FC = () => {
             isComplete={isComplete}
           />
         )}
+
+        {/* Floating Zoom & Map Navigation Toolbar */}
+        <MapNavigationControls
+          zoom={zoom}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onResetView={handleResetView}
+        />
       </div>
 
       {/* Hidden Composite Canvas for Video Recording */}
