@@ -1,0 +1,19 @@
+# Runtimes & Dependencies
+node_modules/
+.venv/
+cache/
+dist/
+
+# Logs & Temp
+*.log
+
+# Environment & Editor
+.DS_Store
+.idea/
+.vscode/
+
+# User reference image (Do not commit)
+image.png
+
+# Generated data (can be generated via scripts/export_city.py)
+# public/data/berlin.json
