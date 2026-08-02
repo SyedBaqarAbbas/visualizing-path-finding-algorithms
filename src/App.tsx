@@ -96,26 +96,25 @@ export const App: React.FC = () => {
     }
     adjacencyRef.current = adj;
 
-    // Pick start & destination nodes
+    // Pick start & destination nodes with generous distance separation across the city
+    let maxDistSq = -1;
     let bestStart = 0;
-    let bestDest = 0;
-    let minX = Infinity;
-    let maxX = -Infinity;
+    let bestDest = Math.max(0, data.nodes.length - 1);
 
-    data.nodes.forEach((n) => {
-      if (n.x < minX && n.y > 0.3 && n.y < 0.7) {
-        minX = n.x;
-        bestStart = n.id;
+    const step = Math.max(1, Math.floor(data.nodes.length / 60));
+    for (let i = 0; i < data.nodes.length; i += step) {
+      for (let j = i + step; j < data.nodes.length; j += step) {
+        const ni = data.nodes[i];
+        const nj = data.nodes[j];
+        const dx = ni.x - nj.x;
+        const dy = ni.y - nj.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > maxDistSq) {
+          maxDistSq = distSq;
+          bestStart = i;
+          bestDest = j;
+        }
       }
-      if (n.x > maxX && n.y > 0.3 && n.y < 0.7) {
-        maxX = n.x;
-        bestDest = n.id;
-      }
-    });
-
-    if (bestStart === bestDest && data.nodes.length > 1) {
-      bestStart = 0;
-      bestDest = Math.floor(data.nodes.length / 2);
     }
 
     setStartNodeId(bestStart);

@@ -54,12 +54,12 @@ export async function geocodeCity(query: string): Promise<{ name: string; lat: n
   };
 }
 
-// Fetch street network from Overpass API (HTTPS + CORS enabled)
+// Fetch street network from Overpass API and extract the Largest Connected Component
 export async function fetchCityGraphFromOSM(
   cityName: string,
   centerLat: number,
   centerLon: number,
-  radiusKm: number = 2.2
+  radiusKm: number = 2.5
 ): Promise<CityGraph> {
   const latDelta = radiusKm / 111.0;
   const lonDelta = radiusKm / (111.0 * Math.cos(degToRad(centerLat)));
@@ -80,7 +80,6 @@ out skel qt;`;
   let res: Response | null = null;
   let lastError: Error | null = null;
 
-  // Try Overpass endpoints with fallback
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
       const overpassUrl = `${endpoint}?data=${encodeURIComponent(overpassQuery)}`;
@@ -129,7 +128,7 @@ out skel qt;`;
   }
 
   const nodeIndexMap = new Map<number, number>();
-  const nodes: GraphNode[] = [];
+  const rawNodes: GraphNode[] = [];
 
   let idx = 0;
   usedNodeIds.forEach((osmId) => {
@@ -140,7 +139,7 @@ out skel qt;`;
     const xMeters = node.lon * 111320 * Math.cos(meanLatRad);
     const yMeters = node.lat * 110574;
 
-    nodes.push({
+    rawNodes.push({
       id: idx,
       x: 0,
       y: 0,
@@ -150,6 +149,137 @@ out skel qt;`;
     idx++;
   });
 
+  const rawEdges: GraphEdge[] = [];
+  let edgeId = 0;
+
+  for (const way of osmWays) {
+    const isOneWay = way.tags?.oneway === 'yes';
+
+    for (let i = 0; i < way.nodes.length - 1; i++) {
+      const uOsm = way.nodes[i];
+      const vOsm = way.nodes[i + 1];
+
+      if (!nodeIndexMap.has(uOsm) || !nodeIndexMap.has(vOsm)) continue;
+
+      const uIdx = nodeIndexMap.get(uOsm)!;
+      const vIdx = nodeIndexMap.get(vOsm)!;
+
+      const uNode = rawNodes[uIdx];
+      const vNode = rawNodes[vIdx];
+
+      const dx = vNode.px - uNode.px;
+      const dy = vNode.py - uNode.py;
+      const weight = Math.hypot(dx, dy);
+
+      rawEdges.push({
+        id: edgeId++,
+        source: uIdx,
+        target: vIdx,
+        weight,
+        points: [
+          [uNode.px, uNode.py],
+          [vNode.px, vNode.py],
+        ],
+      });
+
+      if (!isOneWay) {
+        rawEdges.push({
+          id: edgeId++,
+          source: vIdx,
+          target: uIdx,
+          weight,
+          points: [
+            [vNode.px, vNode.py],
+            [uNode.px, uNode.py],
+          ],
+        });
+      }
+    }
+  }
+
+  // --- LARGEST CONNECTED COMPONENT (LCC) FILTERING ---
+  // Guarantees 100% path reachability between every pair of nodes in the graph
+  const adjMap = new Map<number, number[]>();
+  for (let i = 0; i < rawNodes.length; i++) adjMap.set(i, []);
+
+  for (const edge of rawEdges) {
+    adjMap.get(edge.source)?.push(edge.target);
+    adjMap.get(edge.target)?.push(edge.source);
+  }
+
+  const visited = new Set<number>();
+  let largestComponentNodeIds: number[] = [];
+
+  for (let i = 0; i < rawNodes.length; i++) {
+    if (!visited.has(i)) {
+      const component: number[] = [];
+      const queue = [i];
+      visited.add(i);
+
+      let head = 0;
+      while (head < queue.length) {
+        const u = queue[head++];
+        component.push(u);
+
+        const neighbors = adjMap.get(u) || [];
+        for (const v of neighbors) {
+          if (!visited.has(v)) {
+            visited.add(v);
+            queue.push(v);
+          }
+        }
+      }
+
+      if (component.length > largestComponentNodeIds.length) {
+        largestComponentNodeIds = component;
+      }
+    }
+  }
+
+  // Filter & Re-index nodes belonging to Largest Connected Component
+  const lccNodeSet = new Set(largestComponentNodeIds);
+  const newIndexMap = new Map<number, number>();
+  const nodes: GraphNode[] = [];
+
+  let newIdx = 0;
+  for (const oldIdx of largestComponentNodeIds) {
+    newIndexMap.set(oldIdx, newIdx);
+    const oldNode = rawNodes[oldIdx];
+    nodes.push({
+      id: newIdx,
+      x: 0,
+      y: 0,
+      px: oldNode.px,
+      py: oldNode.py,
+    });
+    newIdx++;
+  }
+
+  // Filter edges belonging to Largest Connected Component
+  const edges: GraphEdge[] = [];
+  let newEdgeId = 0;
+
+  for (const edge of rawEdges) {
+    if (lccNodeSet.has(edge.source) && lccNodeSet.has(edge.target)) {
+      const uNew = newIndexMap.get(edge.source)!;
+      const vNew = newIndexMap.get(edge.target)!;
+      const uNode = nodes[uNew];
+      const vNode = nodes[vNew];
+
+      edges.push({
+        id: newEdgeId++,
+        source: uNew,
+        target: vNew,
+        weight: edge.weight,
+        points: [
+          [uNode.px, uNode.py],
+          [vNode.px, vNode.py],
+        ],
+      });
+    }
+  }
+
+  // Compute bounding box and normalize screen coordinates [0..1]
   let minX = Infinity,
     maxX = -Infinity;
   let minY = Infinity,
@@ -170,53 +300,15 @@ out skel qt;`;
     n.y = 1.0 - (n.py - minY) / rangeY;
   });
 
-  const edges: GraphEdge[] = [];
-  let edgeId = 0;
-
-  for (const way of osmWays) {
-    const isOneWay = way.tags?.oneway === 'yes';
-
-    for (let i = 0; i < way.nodes.length - 1; i++) {
-      const uOsm = way.nodes[i];
-      const vOsm = way.nodes[i + 1];
-
-      if (!nodeIndexMap.has(uOsm) || !nodeIndexMap.has(vOsm)) continue;
-
-      const uIdx = nodeIndexMap.get(uOsm)!;
-      const vIdx = nodeIndexMap.get(vOsm)!;
-
-      const uNode = nodes[uIdx];
-      const vNode = nodes[vIdx];
-
-      const dx = vNode.px - uNode.px;
-      const dy = vNode.py - uNode.py;
-      const weight = Math.hypot(dx, dy);
-
-      edges.push({
-        id: edgeId++,
-        source: uIdx,
-        target: vIdx,
-        weight,
-        points: [
-          [uNode.x, uNode.y],
-          [vNode.x, vNode.y],
-        ],
-      });
-
-      if (!isOneWay) {
-        edges.push({
-          id: edgeId++,
-          source: vIdx,
-          target: uIdx,
-          weight,
-          points: [
-            [vNode.x, vNode.y],
-            [uNode.x, uNode.y],
-          ],
-        });
-      }
-    }
-  }
+  // Re-map edge points to normalized screen coordinates
+  edges.forEach((edge) => {
+    const uNode = nodes[edge.source];
+    const vNode = nodes[edge.target];
+    edge.points = [
+      [uNode.x, uNode.y],
+      [vNode.x, vNode.y],
+    ];
+  });
 
   return {
     name: cityName,
