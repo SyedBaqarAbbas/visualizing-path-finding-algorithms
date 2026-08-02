@@ -6,6 +6,7 @@ import {
   AdjacencyEdge,
   AlgorithmType,
   AlgorithmResult,
+  ALGORITHM_COLORS,
 } from './types/graph';
 import { CanvasRenderer } from './rendering/CanvasRenderer';
 import { HUD, ALGORITHMS_INFO } from './components/HUD';
@@ -82,7 +83,7 @@ export const App: React.FC = () => {
         }
         adjacencyRef.current = adj;
 
-        // Pick initial start (west Berlin) and destination (east Berlin) matching image.png
+        // Pick initial start (west Berlin) and destination (east Berlin)
         let bestStart = 0;
         let bestDest = 0;
         let minX = Infinity;
@@ -133,7 +134,14 @@ export const App: React.FC = () => {
           // Redraw overlay
           const startNode = startNodeId !== null ? graphData.nodes[startNodeId] : null;
           const destNode = destNodeId !== null ? graphData.nodes[destNodeId] : null;
-          rendererRef.current.drawOverlay(startNode, destNode, [], 0, performance.now());
+          rendererRef.current.drawOverlay(
+            startNode,
+            destNode,
+            [],
+            0,
+            ALGORITHMS_INFO[selectedAlg] ? ALGORITHM_COLORS[selectedAlg] : ALGORITHM_COLORS.dijkstra,
+            performance.now()
+          );
         }
       }
     };
@@ -141,7 +149,7 @@ export const App: React.FC = () => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [graphData, startNodeId, destNodeId, isMobileFrame]);
+  }, [graphData, startNodeId, destNodeId, isMobileFrame, selectedAlg]);
 
   // Initialize Web Worker
   useEffect(() => {
@@ -161,6 +169,7 @@ export const App: React.FC = () => {
       if (rendererRef.current && graphData && startNodeId !== null && destNodeId !== null) {
         const startNode = graphData.nodes[startNodeId];
         const destNode = graphData.nodes[destNodeId];
+        const colorScheme = ALGORITHM_COLORS[selectedAlg];
         
         let pathEdges: GraphEdge[] = [];
         let progress = 0;
@@ -172,7 +181,14 @@ export const App: React.FC = () => {
           progress = 1.0;
         }
 
-        rendererRef.current.drawOverlay(startNode, destNode, pathEdges, progress, performance.now());
+        rendererRef.current.drawOverlay(
+          startNode,
+          destNode,
+          pathEdges,
+          progress,
+          colorScheme,
+          performance.now()
+        );
 
         // Update composite canvas for video recording
         if (compositeCanvasRef.current && isRecording) {
@@ -180,6 +196,7 @@ export const App: React.FC = () => {
             compositeCanvasRef.current,
             ALGORITHMS_INFO[selectedAlg].name,
             ALGORITHMS_INFO[selectedAlg].timeComplexity,
+            colorScheme,
             graphData.nodes.length,
             computeTimeMs,
             graphData.name
@@ -224,6 +241,7 @@ export const App: React.FC = () => {
 
         let cursor = 0;
         const startTime = performance.now();
+        const colorScheme = ALGORITHM_COLORS[alg];
 
         const animateFrame = (now: number) => {
           const elapsed = now - startTime;
@@ -231,7 +249,13 @@ export const App: React.FC = () => {
           const targetCursor = Math.floor(progress * totalEvents);
 
           if (cursor < targetCursor && rendererRef.current) {
-            rendererRef.current.drawExplorationBatch(graphData.edges, eventArray, cursor, targetCursor);
+            rendererRef.current.drawExplorationBatch(
+              graphData.edges,
+              eventArray,
+              cursor,
+              targetCursor,
+              colorScheme
+            );
             cursor = targetCursor;
             setSettledCount(Math.floor((targetCursor / totalEvents) * res.settledNodesCount));
           }
@@ -363,7 +387,7 @@ export const App: React.FC = () => {
 
   return (
     <div className={`app-container ${isMobileFrame ? 'mobile-frame-mode' : ''}`}>
-      {/* Canvas Visualizer Container (Full screen on desktop by default) */}
+      {/* Canvas Visualizer Container */}
       <div className="visualizer-wrapper" ref={wrapperRef}>
         {/* Layer 1: Base road network */}
         <canvas ref={baseCanvasRef} />

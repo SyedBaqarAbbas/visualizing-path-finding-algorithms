@@ -1,4 +1,4 @@
-import { GraphEdge, GraphNode, EVENT_TYPE } from '../types/graph';
+import { GraphEdge, GraphNode, EVENT_TYPE, ColorScheme, ALGORITHM_COLORS, ENDPOINT_COLORS } from '../types/graph';
 import { drawGlowingPoint, drawFinalPath } from './effects';
 
 export class CanvasRenderer {
@@ -77,11 +77,9 @@ export class CanvasRenderer {
     let renderH: number;
 
     if (screenAspect > this.worldAspectRatio) {
-      // Screen area is wider than map -> fit height, center horizontally
       renderH = availableH;
       renderW = availableH * this.worldAspectRatio;
     } else {
-      // Screen area is taller than map -> fit width, center vertically
       renderW = availableW;
       renderH = availableW / this.worldAspectRatio;
     }
@@ -95,7 +93,7 @@ export class CanvasRenderer {
     return [px, py];
   }
 
-  // Clear base canvas and draw dark background road network
+  // Clear base canvas and draw dark background road network (#1B2942 at 55% opacity)
   public drawBaseNetwork(edges: GraphEdge[]) {
     this.baseCtx.clearRect(0, 0, this.width, this.height);
 
@@ -115,9 +113,9 @@ export class CanvasRenderer {
       }
     }
 
-    // Subtle dark blue road network styling
-    this.baseCtx.strokeStyle = 'rgba(39, 55, 88, 0.58)';
-    this.baseCtx.lineWidth = 0.7;
+    // Unexplored roads: #1B2942 at 55% opacity (rgba(27, 41, 66, 0.55))
+    this.baseCtx.strokeStyle = ENDPOINT_COLORS.unexplored;
+    this.baseCtx.lineWidth = 0.65;
     this.baseCtx.stroke();
     this.baseCtx.restore();
   }
@@ -127,12 +125,13 @@ export class CanvasRenderer {
     this.explorationCtx.clearRect(0, 0, this.width, this.height);
   }
 
-  // Incremental exploration drawing without clearing the exploration canvas
+  // Incremental exploration drawing using the current algorithm's assigned neon color
   public drawExplorationBatch(
     edges: GraphEdge[],
     eventArray: Uint32Array,
     startCursor: number,
-    endCursor: number
+    endCursor: number,
+    colorScheme: ColorScheme
   ) {
     if (startCursor >= endCursor) return;
 
@@ -140,9 +139,9 @@ export class CanvasRenderer {
     this.explorationCtx.lineCap = 'round';
     this.explorationCtx.lineJoin = 'round';
 
-    // Relaxed cyan edges stroke
+    // Active exploration stroke using full-intensity assigned color
     this.explorationCtx.beginPath();
-    this.explorationCtx.strokeStyle = 'rgba(27, 207, 255, 0.92)';
+    this.explorationCtx.strokeStyle = colorScheme.rgba(0.92);
     this.explorationCtx.lineWidth = 1.25;
 
     for (let i = startCursor; i < endCursor; i++) {
@@ -167,34 +166,35 @@ export class CanvasRenderer {
     this.explorationCtx.restore();
   }
 
-  // Draw overlay canvas elements (Start, Destination, Final Path, pulses)
+  // Draw overlay canvas elements (Start #FF5349, Destination #25F58B, Final Path, pulses)
   public drawOverlay(
     startNode: GraphNode | null,
     destNode: GraphNode | null,
     pathEdges: GraphEdge[],
     pathProgress: number,
+    colorScheme: ColorScheme,
     timeMs: number
   ) {
     this.overlayCtx.clearRect(0, 0, this.width, this.height);
 
-    // Draw final path if pathProgress > 0
+    // Draw final path if pathProgress > 0 using additive luminous glow
     if (pathEdges.length > 0 && pathProgress > 0) {
       const pointsList: [number, number][][] = pathEdges.map((edge) =>
         edge.points.map((pt) => this.toScreenCoords(pt[0], pt[1]))
       );
-      drawFinalPath(this.overlayCtx, pointsList, pathProgress);
+      drawFinalPath(this.overlayCtx, pointsList, colorScheme, pathProgress);
     }
 
-    // Draw start node (red glow)
+    // Draw start node (#FF5349 red)
     if (startNode) {
       const [sx, sy] = this.toScreenCoords(startNode.x, startNode.y);
-      drawGlowingPoint(this.overlayCtx, sx, sy, '#ff3b5c', timeMs, 'START');
+      drawGlowingPoint(this.overlayCtx, sx, sy, ENDPOINT_COLORS.start, timeMs, 'START');
     }
 
-    // Draw destination node (green glow)
+    // Draw destination node (#25F58B green)
     if (destNode) {
       const [dx, dy] = this.toScreenCoords(destNode.x, destNode.y);
-      drawGlowingPoint(this.overlayCtx, dx, dy, '#00ff88', timeMs, 'DESTINATION');
+      drawGlowingPoint(this.overlayCtx, dx, dy, ENDPOINT_COLORS.destination, timeMs, 'DESTINATION');
     }
   }
 
@@ -203,6 +203,7 @@ export class CanvasRenderer {
     targetCanvas: HTMLCanvasElement,
     algorithmName: string,
     timeComplexity: string,
+    colorScheme: ColorScheme,
     nodesCount: number,
     computeTimeMs: number,
     cityName: string,
@@ -215,7 +216,7 @@ export class CanvasRenderer {
     ctx.save();
     ctx.scale(this.dpr, this.dpr);
 
-    // 1. Dark Background
+    // 1. Background #020406
     ctx.fillStyle = '#020406';
     ctx.fillRect(0, 0, this.width, this.height);
 
@@ -240,21 +241,23 @@ export class CanvasRenderer {
     const hudLeft = Math.floor(this.width * 0.08);
     const hudRight = Math.floor(this.width * 0.92);
 
-    ctx.font = '800 24px "Outfit", sans-serif';
-    ctx.fillStyle = '#71b6ff';
+    // Algorithm Heading: softer desaturated color
+    ctx.font = '800 28px "Outfit", sans-serif';
+    ctx.fillStyle = colorScheme.soft;
     ctx.textAlign = 'left';
-    ctx.shadowColor = 'rgba(113, 182, 255, 0.4)';
+    ctx.shadowColor = colorScheme.glow;
     ctx.shadowBlur = 10;
     ctx.fillText(algorithmName, hudLeft, hudTop);
 
+    // Complexity & Stats: Neutral text #A0A5AC, values #E5E7EB
     ctx.font = '500 11px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#6b7280';
+    ctx.fillStyle = '#A0A5AC';
     ctx.textAlign = 'right';
     ctx.shadowBlur = 0;
     ctx.fillText(`TC: ${timeComplexity}`, hudRight, hudTop - 6);
 
     ctx.font = '600 12px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#a0a5ac';
+    ctx.fillStyle = '#E5E7EB';
     ctx.fillText(
       `Nodes: ${nodesCount.toLocaleString()}    Time: ${computeTimeMs.toFixed(1)} ms`,
       hudRight,
@@ -262,9 +265,9 @@ export class CanvasRenderer {
     );
 
     ctx.font = '900 36px "Outfit", sans-serif';
-    ctx.fillStyle = '#64aaff';
+    ctx.fillStyle = colorScheme.soft;
     ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(100, 170, 255, 0.5)';
+    ctx.shadowColor = colorScheme.glow;
     ctx.shadowBlur = 16;
     ctx.fillText(cityName.toUpperCase(), this.width / 2, this.height - Math.floor(this.height * 0.08));
 

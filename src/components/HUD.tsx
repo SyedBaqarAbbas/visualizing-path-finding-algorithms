@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlgorithmType, AlgorithmInfo } from '../types/graph';
+import { AlgorithmType, AlgorithmInfo, ALGORITHM_COLORS } from '../types/graph';
 
 interface HUDProps {
   currentAlgorithm: AlgorithmInfo;
@@ -80,6 +80,7 @@ export const HUD: React.FC<HUDProps> = ({
   isComplete,
 }) => {
   const km = (pathLengthMeters / 1000).toFixed(2);
+  const colorScheme = ALGORITHM_COLORS[currentAlgorithm.id];
 
   return (
     <div className="hud-container">
@@ -88,11 +89,19 @@ export const HUD: React.FC<HUDProps> = ({
         <span>Visualizing all pathfinding algorithms within 30 seconds 🗺️</span>
       </div>
 
-      {/* Main HUD overlay matching reference screenshot */}
+      {/* Main HUD overlay */}
       <div className="hud-overlay">
         <div className="hud-top">
           <div className="algorithm-name-container">
-            <h2 className="algorithm-name">{currentAlgorithm.name}</h2>
+            <h2
+              className="algorithm-name"
+              style={{
+                color: colorScheme.soft,
+                textShadow: `0 0 16px ${colorScheme.glow}`,
+              }}
+            >
+              {currentAlgorithm.name}
+            </h2>
             {currentAlgorithm.category === 'traversal' && (
               <span className="category-badge traversal">Graph Traversal</span>
             )}
@@ -103,11 +112,12 @@ export const HUD: React.FC<HUDProps> = ({
 
           <div className="metrics">
             <div className="metric-row">
-              <span className="complexity">TC: {currentAlgorithm.timeComplexity}</span>
+              <span className="complexity-label">TC: </span>
+              <span className="complexity-val">{currentAlgorithm.timeComplexity}</span>
             </div>
             <div className="metric-row">
-              <span>Nodes: {nodesCount.toLocaleString()}</span>
-              <span>Time: {computeTimeMs > 0 ? computeTimeMs.toFixed(1) : '---'} ms</span>
+              <span>Nodes: <strong className="stat-num">{nodesCount.toLocaleString()}</strong></span>
+              <span>Time: <strong className="stat-num">{computeTimeMs > 0 ? computeTimeMs.toFixed(1) : '---'} ms</strong></span>
             </div>
           </div>
         </div>
@@ -115,14 +125,27 @@ export const HUD: React.FC<HUDProps> = ({
         {/* Live execution statistics bar */}
         {(isExploring || isComplete) && (
           <div className="hud-stats-bar">
-            <div className="stat-pill">
+            <div
+              className="stat-pill"
+              style={{ borderColor: colorScheme.rgba(0.3) }}
+            >
               <span className="stat-label">Explored</span>
-              <span className="stat-value">{settledNodesCount.toLocaleString()} nodes</span>
+              <span className="stat-value" style={{ color: colorScheme.primary }}>
+                {settledNodesCount.toLocaleString()} nodes
+              </span>
             </div>
             {isComplete && pathLengthMeters > 0 && (
-              <div className="stat-pill highlight">
+              <div
+                className="stat-pill highlight"
+                style={{
+                  borderColor: colorScheme.primary,
+                  boxShadow: `0 0 14px ${colorScheme.rgba(0.25)}`,
+                }}
+              >
                 <span className="stat-label">Route Length</span>
-                <span className="stat-value">{km} km</span>
+                <span className="stat-value" style={{ color: '#ffffff' }}>
+                  {km} km
+                </span>
               </div>
             )}
           </div>
@@ -130,7 +153,15 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* Bottom City Title */}
-      <div className="city-title">{cityName.toUpperCase()}</div>
+      <div
+        className="city-title"
+        style={{
+          color: colorScheme.soft,
+          textShadow: `0 0 22px ${colorScheme.glow}`,
+        }}
+      >
+        {cityName.toUpperCase()}
+      </div>
     </div>
   );
 };
