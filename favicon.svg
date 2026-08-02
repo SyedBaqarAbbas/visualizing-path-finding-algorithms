@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0a1628" />
+      <stop offset="100%" stop-color="#020406" />
+    </radialGradient>
+
+    <!-- Cyan Neon Route Glow Filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur1" />
+      <feGaussianBlur stdDeviation="16" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Start Node Red Glow Filter -->
+    <filter id="startGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Dest Node Green Glow Filter -->
+    <filter id="destGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark Rounded Container -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGlow)" stroke="#1f3454" stroke-width="8" />
+
+  <!-- Road Network Background Edges -->
+  <g stroke="#1b2942" stroke-width="6" stroke-linecap="round" opacity="0.75">
+    <line x1="90" y1="380" x2="160" y2="280" />
+    <line x1="160" y1="280" x2="110" y2="150" />
+    <line x1="160" y1="280" x2="270" y2="340" />
+    <line x1="270" y1="340" x2="400" y2="390" />
+    <line x1="270" y1="340" x2="330" y2="210" />
+    <line x1="330" y1="210" x2="420" y2="130" />
+    <line x1="110" y1="150" x2="250" y2="120" />
+    <line x1="250" y1="120" x2="330" y2="210" />
+  </g>
+
+  <!-- Primary Luminous Pathfinding Route (Additive Glow + White Core) -->
+  <g filter="url(#neonGlow)">
+    <!-- Outer Neon Outer Soft Layer -->
+    <path d="M 120 370 Q 210 310 260 230 T 390 140" fill="none" stroke="#29C7FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" opacity="0.4" />
+    <!-- Medium Saturated Halo -->
+    <path d="M 120 370 Q 210 310 260 230 T 390 140" fill="none" stroke="#22E5E5" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.8" />
+    <!-- Crisp White Core Line -->
+    <path d="M 120 370 Q 210 310 260 230 T 390 140" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Unexplored Frontier Nodes -->
+  <circle cx="160" cy="280" r="7" fill="#1b2942" stroke="#29C7FF" stroke-width="3" opacity="0.6" />
+  <circle cx="270" cy="340" r="7" fill="#1b2942" stroke="#29C7FF" stroke-width="3" opacity="0.6" />
+  <circle cx="330" cy="210" r="7" fill="#1b2942" stroke="#22E5E5" stroke-width="3" opacity="0.6" />
+
+  <!-- START NODE (Coral Red #FF5349) -->
+  <g filter="url(#startGlow)">
+    <circle cx="120" cy="370" r="28" fill="#FF5349" opacity="0.3" />
+    <circle cx="120" cy="370" r="18" fill="#FF5349" stroke="#ffffff" stroke-width="4" />
+    <circle cx="120" cy="370" r="6" fill="#ffffff" />
+  </g>
+
+  <!-- DESTINATION NODE (Emerald Green #25F58B) -->
+  <g filter="url(#destGlow)">
+    <circle cx="390" cy="140" r="28" fill="#25F58B" opacity="0.3" />
+    <circle cx="390" cy="140" r="18" fill="#25F58B" stroke="#ffffff" stroke-width="4" />
+    <circle cx="390" cy="140" r="6" fill="#ffffff" />
+  </g>
+</svg>
