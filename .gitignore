@@ -1,19 +1,26 @@
 # Runtimes & Dependencies
 node_modules/
 .venv/
+venv/
 cache/
 dist/
 
 # Logs & Temp
 *.log
 
-# Environment & Editor
+# Recorded Videos
+*.webm
+*.mp4
+
+# OS & Editor files
 .DS_Store
 .idea/
 .vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# User reference image (Do not commit)
+# User reference image
 image.png
-
-# Generated data (can be generated via scripts/export_city.py)
-# public/data/berlin.json
