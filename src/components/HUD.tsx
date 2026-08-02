@@ -116,8 +116,8 @@ export const HUD: React.FC<HUDProps> = ({
               <span className="complexity-val">{currentAlgorithm.timeComplexity}</span>
             </div>
             <div className="metric-row">
-              <span>Nodes: <strong className="stat-num">{nodesCount.toLocaleString()}</strong></span>
-              <span>Time: <strong className="stat-num">{computeTimeMs > 0 ? computeTimeMs.toFixed(1) : '---'} ms</strong></span>
+              <span className="node-stat">Nodes: <strong className="stat-num">{nodesCount.toLocaleString()}</strong></span>
+              <span className="time-stat">Time: <strong className="stat-num">{computeTimeMs > 0 ? computeTimeMs.toFixed(1) : '---'} ms</strong></span>
             </div>
           </div>
         </div>

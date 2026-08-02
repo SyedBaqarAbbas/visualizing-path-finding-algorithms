@@ -286,7 +286,7 @@ export class CanvasRenderer {
     ctx.font = '600 12px "JetBrains Mono", monospace';
     ctx.fillStyle = '#E5E7EB';
     ctx.fillText(
-      `Nodes: ${nodesCount.toLocaleString()}    Time: ${computeTimeMs.toFixed(1)} ms`,
+      `Nodes: ${nodesCount.toLocaleString()}        Time: ${computeTimeMs.toFixed(1)} ms`,
       hudRight,
       hudTop + 14
     );

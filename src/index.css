@@ -178,6 +178,16 @@ html, body {
   color: var(--text-muted);
 }
 
+.metric-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.time-stat {
+  margin-left: 4px;
+}
+
 .complexity-label {
   color: var(--text-muted);
   font-size: 11px;
