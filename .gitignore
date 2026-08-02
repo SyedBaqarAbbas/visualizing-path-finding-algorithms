@@ -1,0 +1,26 @@
+# Runtimes & Dependencies
+node_modules/
+.venv/
+venv/
+cache/
+dist/
+
+# Logs & Temp
+*.log
+
+# Recorded Videos
+*.webm
+*.mp4
+
+# OS & Editor files
+.DS_Store
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# User reference image
+image.png
