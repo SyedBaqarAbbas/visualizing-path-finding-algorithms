@@ -47,25 +47,6 @@ Ensure you have [Node.js](https://nodejs.org/) (v18 or higher) installed on your
 
 ---
 
-## Deployment
-
-### GitHub Pages (Automated via GitHub Actions)
-
-The repository includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically builds and publishes the application to GitHub Pages upon pushing to the `main` branch.
-
-To enable GitHub Pages:
-1. Navigate to repository **Settings > Pages**.
-2. Under **Build and deployment > Source**, select **GitHub Actions**.
-
-### Manual Deployment
-
-You can also trigger a manual production build and deploy to the `gh-pages` branch:
-```bash
-npm run deploy
-```
-
----
-
 ## Custom City Graph Preprocessing
 
 The default dataset uses pre-processed Berlin graph data stored in `public/data/berlin.json`.
@@ -101,4 +82,4 @@ React UI  <── [Uint32Array Buffer] <── Pathfinder Worker <── Graph A
 
 ## License
 
-MIT License.
+This project is licensed under the [Apache License 2.0](LICENSE).
