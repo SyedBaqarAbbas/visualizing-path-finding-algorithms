@@ -25,6 +25,25 @@ export const App: React.FC = () => {
 
   // Layout mode
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 700px)').matches;
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 700px)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+      return () => mediaQuery.removeListener(handleChange);
+    }
+  }, []);
 
   // Camera Pan & Zoom state
   const [zoom, setZoom] = useState<number>(1.0);
@@ -512,8 +531,13 @@ export const App: React.FC = () => {
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    // Prevent mobile browser from intercepting touch for scroll/URL bar
-    e.preventDefault();
+    if (isMobile) {
+      setIsDragging(false);
+      setDragTarget(null);
+      touchDistRef.current = null;
+      return;
+    }
+
     if (!wrapperRef.current || !rendererRef.current || !graphData || startNodeId === null || destNodeId === null)
       return;
 
@@ -554,8 +578,13 @@ export const App: React.FC = () => {
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    // Prevent mobile browser default scrolling and gesture behaviors
-    e.preventDefault();
+    if (isMobile) {
+      setIsDragging(false);
+      setDragTarget(null);
+      touchDistRef.current = null;
+      return;
+    }
+
     if (!wrapperRef.current || !isDragging) return;
 
     if (e.touches.length === 1) {
@@ -602,6 +631,13 @@ export const App: React.FC = () => {
   };
 
   const handleTouchEnd = () => {
+    if (isMobile) {
+      setIsDragging(false);
+      setDragTarget(null);
+      touchDistRef.current = null;
+      return;
+    }
+
     if (dragTarget === 'start' || dragTarget === 'dest') {
       runAlgorithm(selectedAlg);
     }
