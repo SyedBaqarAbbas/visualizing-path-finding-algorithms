@@ -512,6 +512,8 @@ export const App: React.FC = () => {
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    // Prevent mobile browser from intercepting touch for scroll/URL bar
+    e.preventDefault();
     if (!wrapperRef.current || !rendererRef.current || !graphData || startNodeId === null || destNodeId === null)
       return;
 
@@ -552,6 +554,8 @@ export const App: React.FC = () => {
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    // Prevent mobile browser default scrolling and gesture behaviors
+    e.preventDefault();
     if (!wrapperRef.current || !isDragging) return;
 
     if (e.touches.length === 1) {

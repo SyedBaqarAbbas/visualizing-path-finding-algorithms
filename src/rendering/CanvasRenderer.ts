@@ -72,6 +72,16 @@ export class CanvasRenderer {
     this.width = cssWidth;
     this.height = cssHeight;
 
+    if (cssWidth < 640) {
+      this.paddingX = 16;
+      this.paddingTop = 85;
+      this.paddingBottom = Math.min(180, Math.floor(cssHeight * 0.28));
+    } else {
+      this.paddingX = 40;
+      this.paddingTop = 100;
+      this.paddingBottom = 170;
+    }
+
     const canvasWidth = Math.floor(cssWidth * this.dpr);
     const canvasHeight = Math.floor(cssHeight * this.dpr);
 
