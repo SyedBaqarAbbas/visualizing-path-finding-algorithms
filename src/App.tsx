@@ -776,6 +776,19 @@ export const App: React.FC = () => {
 
   return (
     <div className={`app-container ${isMobileFrame ? 'mobile-frame-mode' : ''}`}>
+      {/* Top Banner */}
+      <div className="header-banner">
+        <span>Visualizing all pathfinding algorithms within 30 seconds</span>
+      </div>
+
+      {/* Floating Zoom & Map Navigation Toolbar */}
+      <MapNavigationControls
+        zoom={zoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetView={handleResetView}
+      />
+
       {/* Canvas Visualizer Container with Mouse/Touch Pan, Zoom & Endpoint Drag */}
       <div
         className={`visualizer-wrapper ${getWrapperCursorClass()}`}
@@ -795,29 +808,21 @@ export const App: React.FC = () => {
         <canvas ref={explorationCanvasRef} />
         {/* Layer 3: Endpoints, final path & glow overlay */}
         <canvas ref={overlayCanvasRef} />
-
-        {/* HUD Overlay */}
-        {graphData && (
-          <HUD
-            currentAlgorithm={ALGORITHMS_INFO[selectedAlg]}
-            nodesCount={graphData.nodes.length}
-            computeTimeMs={computeTimeMs}
-            pathLengthMeters={pathLengthMeters}
-            settledNodesCount={settledCount}
-            cityName={graphData.name}
-            isExploring={isExploring}
-            isComplete={isComplete}
-          />
-        )}
-
-        {/* Floating Zoom & Map Navigation Toolbar */}
-        <MapNavigationControls
-          zoom={zoom}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          onResetView={handleResetView}
-        />
       </div>
+
+      {/* HUD Overlay (City Title & Status Card) */}
+      {graphData && (
+        <HUD
+          currentAlgorithm={ALGORITHMS_INFO[selectedAlg]}
+          nodesCount={graphData.nodes.length}
+          computeTimeMs={computeTimeMs}
+          pathLengthMeters={pathLengthMeters}
+          settledNodesCount={settledCount}
+          cityName={graphData.name}
+          isExploring={isExploring}
+          isComplete={isComplete}
+        />
+      )}
 
       {/* Hidden Composite Canvas for Video Recording */}
       <canvas ref={compositeCanvasRef} className="offscreen-canvas" />
