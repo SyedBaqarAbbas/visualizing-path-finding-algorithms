@@ -10,12 +10,12 @@ interface CitySelectorModalProps {
 }
 
 const PRESET_CITIES = [
-  { name: 'Berlin', country: 'Germany', lat: 52.52, lon: 13.405, isBuiltIn: true },
-  { name: 'Lahore', country: 'Pakistan', lat: 31.5204, lon: 74.3587, isBuiltIn: false },
-  { name: 'London', country: 'United Kingdom', lat: 51.5074, lon: -0.1278, isBuiltIn: false },
-  { name: 'New York', country: 'United States', lat: 40.7128, lon: -74.006, isBuiltIn: false },
-  { name: 'Tokyo', country: 'Japan', lat: 35.6762, lon: 139.6503, isBuiltIn: false },
-  { name: 'Paris', country: 'France', lat: 48.8566, lon: 2.3522, isBuiltIn: false },
+  { name: 'Berlin', country: 'Germany', lat: 52.52, lon: 13.405, isBuiltIn: true, dataFile: './data/berlin.json' },
+  { name: 'Lahore', country: 'Pakistan', lat: 31.5204, lon: 74.3587, isBuiltIn: true, dataFile: './data/lahore.json' },
+  { name: 'London', country: 'United Kingdom', lat: 51.5074, lon: -0.1278, isBuiltIn: true, dataFile: './data/london.json' },
+  { name: 'New York', country: 'United States', lat: 40.7128, lon: -74.006, isBuiltIn: true, dataFile: './data/new_york.json' },
+  { name: 'Tokyo', country: 'Japan', lat: 35.6762, lon: 139.6503, isBuiltIn: true, dataFile: './data/tokyo.json' },
+  { name: 'Paris', country: 'France', lat: 48.8566, lon: 2.3522, isBuiltIn: true, dataFile: './data/paris.json' },
 ];
 
 export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
@@ -30,12 +30,24 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleFetchCity = async (cityName: string, lat?: number, lon?: number) => {
+  const handleFetchCity = async (cityName: string, lat?: number, lon?: number, dataFile?: string) => {
     setLoading(true);
     setLoadingCityName(cityName);
     setErrorMessage(null);
 
     try {
+      // If we have a pre-built local JSON file, load it directly (instant)
+      if (dataFile) {
+        const res = await fetch(dataFile);
+        if (!res.ok) throw new Error(`Failed to load bundled data for ${cityName}`);
+        const graph: CityGraph = await res.json();
+        onSelectCityGraph(graph);
+        setLoading(false);
+        onClose();
+        return;
+      }
+
+      // Otherwise, fetch live from the Overpass API
       let targetLat = lat;
       let targetLon = lon;
       let displayName = cityName;
@@ -141,7 +153,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
                     <button
                       key={city.name}
                       className="preset-city-card"
-                      onClick={() => handleFetchCity(city.name, city.lat, city.lon)}
+                      onClick={() => handleFetchCity(city.name, city.lat, city.lon, city.dataFile)}
                     >
                       <MapPin size={16} className="pin-icon" />
                       <div className="preset-info">
